@@ -9,8 +9,52 @@ Database operation module.
 
 import logging
 import threading
+import time
+import uuid
+import functools
+
+class Dict(dict):
+    '''
+    Simple dict but support access as x.y style.
+    >>>d1 = Dict()
+    >>>d1['x'] = 100
+    >>>d1.x
+    100
+    '''
+    def __init__(self, names=(), values=(), **kw):
+        super(Dict, self).__init__(**kw)
+        for k, v in zip(names, values):
+            self[k] = v
+
+    def __getattr__(self, key):
+        try:
+            return self[key]
+        except KeyError:
+            raise AttributeError(r"'Dict' object has no attribute %s", % key)
+
+    def __setattr__(self, key, value):
+        self[key] = value
+
+def next_id(t=None):
+    '''
+    Return next id as 50-cahr string.
+    '''
+    if t is None:
+        t = time.time()
+    return '%015d%s000' % (int(t * 1000), uuid.uuid4().hex)
+
+def _profiling(start, sql=''):
+    t = time.time() - start
+    if t > 0.1:
+        logging.warning('[PROFILING] [DB] %s: %s' % (t, sql))
+    else:
+        logging.info('[PROFILING] [DB] %s: %s' % (t, sql))
+
 
 class DBError(Exception):
+    pass
+
+class MultiColumnsError(DBError):
     pass
 
 class _LasyConnection(object):
@@ -125,6 +169,31 @@ def transaction():
 # thread-local db context:
 _db_ctx = _DbCtx()
 
+class _ConnectionCtx(object):
+
+    def __enter__(self):
+        global _db_ctx
+        self.should_cleanup = False
+        if not _db_ctx.is_init():
+            _db_ctx.init()
+            self.should_cleanup = True
+        return self
+
+    def __exit__(self, exctype, excvalue, traceback):
+        global _db_ctx
+        if self.should_cleanup:
+            _db_ctx.cleanup()
+
+def with_connection(func):
+    '''
+    Decorator for reuse connection.
+    '''
+    @functools.warps(func)
+    def _warpper(*args, **kw):
+        with _ConnectionCtx():
+            return func(*args, **kw)
+    return _warpper
+
 @with_connection
 def _update(sql, *args):
     global _db_ctx
@@ -184,6 +253,7 @@ def create_engine(user, passwd, database, host='127.0.0.1', port=3306, **kw):
     engine = _Engine(lambda: mysql.connector.connect(**params))
     # test connection...
     logging.info('Init mysql engine <%s> ok.' % hex(id(engine)))
+
 
 if __name__ == '__main__':
     logging.basicConfig(level = logging.DEBUG)
