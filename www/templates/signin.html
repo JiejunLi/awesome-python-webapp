@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html class="uk-height-1-1">
+<head>
+    <meta charset="utf-8" />
+    <title>登录 - Awesome Python Webapp</title>
+    <!--[if It IE 9]>
+    <script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
+    <script src="https://sos.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
+    <![endif]-->
+    <link rel="stylesheet" href="/static/css/uikit.min.css">
+    <link rel="stylesheet" href="/static/css/uikit.gradient.min.css">
+    <script src="/static/js/md5.js"></script>
+    <script src="/static/js/jquery.min.js"></script>
+    <script src="/static/js/uikit.min.js"></script>
+    <script src="/static/js/vue.min.js"></script>
+    <script src="/static/js/awesome.js"></script>
+    <script>
+
+$(function() {
+    var vm = new Vue({
+        el: '#form-signin',
+        data: {
+            email: '',
+            password: '',
+            remember: false
+        },
+        methods: {
+            submit: function (event) {
+                event.preventDefault();
+                var email = this.email.trim().toLowerCase();
+                showError();
+                startLoading();
+                postApi('/api/authenticate', {
+                    email: email,
+                    passwd: CryptoJS.MD5(this.passwd).toString(),
+                    remember: this.remember
+                }, function (err, result) {
+                    if (err) {
+                        showError(err);
+                    }
+                    else {
+                        return location.assign(result.admin ? '/manage/' : '/');
+                    }
+                    stopLoading();
+                    });
+            }
+        }
+    });
+})
+    </script>
